@@ -19,11 +19,11 @@ names = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', '
 
 class Img_buffer():
     def __init__(self):      
-        self.ex_frm = shared_memory.SharedMemory(name="frame")
+        self.ex_raw = shared_memory.SharedMemory(name="raw-frame")
         self.ex_read = shared_memory.SharedMemory(name="read")
         self.ex_dets = shared_memory.SharedMemory(name = "dets")
         self.ex_status = shared_memory.SharedMemory(name="status") # not inferenced images = 1
-        self.frm =  np.ndarray([BUF_SZ, 480, 640, 3], dtype=np.uint8, buffer=self.ex_frm.buf)
+        self.raw =  np.ndarray([BUF_SZ, 480, 640, 3], dtype=np.uint8, buffer=self.ex_raw.buf)
         self.read = np.ndarray([NUM_PROC], dtype=np.int64, buffer=self.ex_read.buf)		 
         self.dets_buf = np.ndarray([BUF_SZ, NUM_DETS, 6], dtype=np.float32, buffer=self.ex_dets.buf)
         self.status = np.ndarray([BUF_SZ], dtype=np.uint8, buffer=self.ex_status.buf)
@@ -39,20 +39,21 @@ class Img_buffer():
         self.dets = None
 
     def show(self):
-        if np.amin(self.read) - self.last:
-            diff = np.amin(self.read) - self.last
-            if diff > BUF_SZ:
-                self.last = np.amin(self.read)
-                return
-            print("Difference:", diff)
-            print(np.amin(self.read), self.last)
-            for i in range(1,(diff+1)%BUF_SZ):
-                if not self.status[(self.last+i)%BUF_SZ]:# если инференс был на одной из картинок, которые не успели показать
-                    self.temp = self.last+i
-                    print("Reading from: ", self.temp)
+        tail = self.counter[0]%BUF_SZ
+        idx = np.where(self.status==3)[0]
+        queue = np.concatenate((idx[idx>tail], idx[idx<tail]))
+        
+        if len(queue):
+            if len(queue)>2:
+                for i in range(len(queue)-2):
+                    self.status[queue[i]] = 0
+            
+            elif not self.status[queue[-1] - 1]  == 2: # checking if penultimate image is being inferenced
+                for idx in queue:
+                    self.status[idx] = 0                   
                     self.frame_counter+=1
-                    frame = self.frm[self.temp%BUF_SZ]
-                    self.dets = self.dets_buf[self.temp%BUF_SZ]
+                    frame = self.raw[idx]
+                    self.dets = self.dets_buf[idx]
                     self.frame = self.post(frame, self.dets)
                     if not self.frame_counter % 30:
                         self.fps = 30/(time.time() - self.begin)
@@ -61,11 +62,6 @@ class Img_buffer():
                         self.begin = time.time()
                     cv2.imshow('frame', self.frame)
                     key = cv2.waitKey(1)
-                else: print("Not inferenced:", self.last+i)
-
-            if self.temp:
-                self.last = self.temp
-                self.temp = 0		
             print("Max FPS %.2f, Current Fps: %.2f"%(self.max_fps, self.fps))
 
     def post(self, frame, dets):

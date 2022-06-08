@@ -45,11 +45,10 @@ def letterbox(im, new_shape=(640, 640), color=(114, 114, 114), auto=False, scale
 
 
 def cam(source):
-    shm_pre = shared_memory.SharedMemory(create=True, size=BUF_SZ*3*352*352, name = "pre") 
-    shm_frm = shared_memory.SharedMemory(create=True, size=BUF_SZ*3*480*640, name = "frame") 
+    shm_pre = shared_memory.SharedMemory(create=True, size=BUF_SZ*3*352*352, name = "pre-frame") 
+    shm_raw = shared_memory.SharedMemory(create=True, size=BUF_SZ*3*480*640, name = "raw-frame") 
     shm_counter = shared_memory.SharedMemory(create=True, size=8, name = "counter") 
     shm_status = shared_memory.SharedMemory(create=True, size=BUF_SZ, name = "status") 
-    shm_read = shared_memory.SharedMemory(create=True, size=NUM_PROC*8, name = "read") 
     shm_dets = shared_memory.SharedMemory(create=True, size=BUF_SZ*4*NUM_DETS*6, name = "dets") 
     shm_stop = shared_memory.SharedMemory(create=True, size=1, name = "stop") 
     stop =  np.ndarray([1], dtype=np.uint8, buffer=shm_stop.buf)
@@ -58,7 +57,7 @@ def cam(source):
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)	
     pre = np.ndarray([BUF_SZ, 3, 352, 352], dtype=np.uint8, buffer=shm_pre.buf)
-    frm = np.ndarray([BUF_SZ, 480, 640, 3], dtype=np.uint8, buffer=shm_frm.buf)
+    raw = np.ndarray([BUF_SZ, 480, 640, 3], dtype=np.uint8, buffer=shm_raw.buf)
     counter = np.ndarray([1], dtype=np.int64, buffer=shm_counter.buf)
     status = np.ndarray([BUF_SZ], dtype=np.uint8, buffer=shm_status.buf)
     counter[0] = 0
@@ -71,7 +70,7 @@ def cam(source):
                     frame = cv2.resize(frame, [640,480], interpolation = cv2.INTER_LINEAR)
                     print("ONLYFORVIDEO")
                 start = time.time()
-                frm[counter[0]%BUF_SZ][:] = frame 
+                raw[counter[0]%BUF_SZ][:] = frame 
                 pre[counter[0]%BUF_SZ][:] = letterbox(frame, new_shape=(352, 352))
                 status[counter[0]%BUF_SZ] = 1
                 counter[0] += 1	
@@ -79,7 +78,7 @@ def cam(source):
                     slp = 1/FPS -(time.time() - start_main)
                     if slp > 0:
                         time.sleep(slp)
-                print("Fps: ", 1/(time.time() - start_main))
+                # print("Camera FPS: ", 1/(time.time() - start_main))
 
     finally:
         print("\nDeleting object")
@@ -87,8 +86,8 @@ def cam(source):
         shm_counter.unlink()
         shm_pre.close()
         shm_pre.unlink()
-        shm_frm.close()
-        shm_frm.unlink()
+        shm_raw.close()
+        shm_raw.unlink()
         shm_status.close()
         shm_status.unlink()
 

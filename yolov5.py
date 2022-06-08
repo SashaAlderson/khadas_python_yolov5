@@ -39,18 +39,14 @@ class YOLOV5():
         self.nms = 0.2
         self.current = -1
         print("Initialised")
-        self.ex_pre = shared_memory.SharedMemory(name="pre") #preprocessed images
-        self.ex_frm = shared_memory.SharedMemory(name="frame") # raw image
+        self.ex_pre = shared_memory.SharedMemory(name="pre-frame") #preprocessed images
         self.ex_counter = shared_memory.SharedMemory(name="counter") # number of images read from camera
         self.ex_status = shared_memory.SharedMemory(name="status") # not inferenced images
-        self.ex_read = shared_memory.SharedMemory(name = "read") # number of element to read from
         self.ex_dets = shared_memory.SharedMemory(name = "dets") # array of detections
         self.ex_stop = shared_memory.SharedMemory(name = "stop") # array of detections
         self.pre = np.ndarray([BUF_SZ, 3, 352, 352], dtype=np.uint8, buffer=self.ex_pre.buf)
         self.counter = np.ndarray([1], dtype=np.int64, buffer=self.ex_counter.buf)
-        self.frm =  np.ndarray([BUF_SZ, 480, 640, 3], dtype=np.uint8, buffer=self.ex_frm.buf)
         self.status = np.ndarray([BUF_SZ], dtype=np.uint8, buffer=self.ex_status.buf)
-        self.read = np.ndarray([NUM_PROC], dtype=np.int64, buffer=self.ex_read.buf)
         self.dets_buf = np.ndarray([BUF_SZ, NUM_DETS, 6], dtype=np.float32, buffer=self.ex_dets.buf)
         self.stop = np.ndarray([1], dtype=np.uint8, buffer=self.ex_stop.buf)
         self.stop[0] = 0
@@ -58,22 +54,15 @@ class YOLOV5():
     def inference(self):
         if self.status[(self.counter[0]-1)%BUF_SZ] and (self.counter[0]-1)%NUM_PROC == self.proc:
             self.current = (self.counter[0]-1)
-            self.status[self.current%BUF_SZ] = 0 # change status to inferenced
-            start_main = time.time()  
+            self.status[self.current%BUF_SZ] = 2 # start inference
             self.frame = self.pre[self.current%BUF_SZ]
             libc.set_image_wrapper(self.frame.ctypes.data, 352, 352, self.input_tensor, self.img_sz, self.img_sz )
-            start = time.time()
             libc.run_graph(self.graph, 1)
-            print("Graph ran for ", time.time() - start)
-            start = time.time()
             libc.postpress_graph_image_wrapper(480, 640, self.dets.ctypes.data, 
                                                 self.graph,self.output_node_num, 352 ,self.img_sz, self.classes, NUM_DETS, self.nms)
             self.last_dets = copy.deepcopy(self.dets)
-            print("Frame number: ", self.current)
-            print("Full fps: ", 1/(time.time() - start_main))
-            self.read[self.proc] = self.current #last inferenced image from 0-9
             self.dets_buf[self.current%BUF_SZ][:] = self.dets[:]
-
+            self.status[self.current%BUF_SZ] = 3 # inferenced
             
 def run(proc, model):
     yolov5 = YOLOV5(proc, model)	
