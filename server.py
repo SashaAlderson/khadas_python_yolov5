@@ -61,8 +61,8 @@ def letterbox(im, new_shape=(640, 640), color=(114, 114, 114), auto=False, scale
     im = im[::,::,::-1].transpose((2, 0, 1))
     return im
 
-
-def cam(source):
+def create_buffers():
+    global shm_pre, shm_raw, shm_thresh, shm_nms, shm_counter, shm_status, shm_dets, shm_stop
     shm_pre = shared_memory.SharedMemory(create=True, size=BUF_SZ*3*352*352, name = "pre-frame") 
     shm_raw = shared_memory.SharedMemory(create=True, size=BUF_SZ*3*480*640, name = "raw-frame") 
     shm_thresh = shared_memory.SharedMemory(create=True, size=4, name = "thresh") 
@@ -71,6 +71,8 @@ def cam(source):
     shm_status = shared_memory.SharedMemory(create=True, size=BUF_SZ, name = "status") 
     shm_dets = shared_memory.SharedMemory(create=True, size=BUF_SZ*4*NUM_DETS*6, name = "dets") 
     shm_stop = shared_memory.SharedMemory(create=True, size=1, name = "stop") 
+
+def cam(source):
     thresh =  np.ndarray([1], dtype=np.float32, buffer=shm_thresh.buf)
     thresh[0] = 0.2
     nms =  np.ndarray([1], dtype=np.float32, buffer=shm_nms.buf)
@@ -132,20 +134,13 @@ class YOLOV5():
         self.last_dets = None
         self.current = -1
         print("Initialised")
-        self.ex_pre = shared_memory.SharedMemory(name="pre-frame") #preprocessed images
-        self.ex_counter = shared_memory.SharedMemory(name="counter") # number of images read from camera
-        self.ex_status = shared_memory.SharedMemory(name="status") # not inferenced images
-        self.ex_dets = shared_memory.SharedMemory(name = "dets") # array of detections
-        self.ex_stop = shared_memory.SharedMemory(name = "stop") # array of detections
-        self.ex_thresh = shared_memory.SharedMemory(name = "thresh") 
-        self.ex_nms = shared_memory.SharedMemory(name = "nms") 
-        self.pre = np.ndarray([BUF_SZ, 3, 352, 352], dtype=np.uint8, buffer=self.ex_pre.buf)
-        self.counter = np.ndarray([1], dtype=np.int64, buffer=self.ex_counter.buf)
-        self.status = np.ndarray([BUF_SZ], dtype=np.uint8, buffer=self.ex_status.buf)
-        self.dets_buf = np.ndarray([BUF_SZ, NUM_DETS, 6], dtype=np.float32, buffer=self.ex_dets.buf)
-        self.stop = np.ndarray([1], dtype=np.uint8, buffer=self.ex_stop.buf)
-        self.thresh = np.ndarray([1], dtype=np.float32, buffer=self.ex_thresh.buf)[0] # get thresh from buffer
-        self.nms = np.ndarray([1], dtype=np.float32, buffer=self.ex_nms.buf)[0] # get iou thresh from buffer
+        self.pre = np.ndarray([BUF_SZ, 3, 352, 352], dtype=np.uint8, buffer=shm_pre.buf)
+        self.counter = np.ndarray([1], dtype=np.int64, buffer=shm_counter.buf)
+        self.status = np.ndarray([BUF_SZ], dtype=np.uint8, buffer=shm_status.buf)
+        self.dets_buf = np.ndarray([BUF_SZ, NUM_DETS, 6], dtype=np.float32, buffer=shm_dets.buf)
+        self.stop = np.ndarray([1], dtype=np.uint8, buffer=shm_stop.buf)
+        self.thresh = np.ndarray([1], dtype=np.float32, buffer=shm_thresh.buf)[0] # get thresh from buffer
+        self.nms = np.ndarray([1], dtype=np.float32, buffer=shm_nms.buf)[0] # get iou thresh from buffer
         self.stop[0] = 0
 
     def inference(self):
@@ -168,25 +163,19 @@ def run(proc, model):
 
 class Khadas():
     def __init__(self):
+        create_buffers()
+        time.sleep(1)  
         self.cam = Process(target=cam, args = (SOURCE,))
-        self.cam.start()
-        time.sleep(1)    
-        self.ex_stop = shared_memory.SharedMemory(name = "stop") 
-        self.stop =  np.ndarray([1], dtype=np.uint8, buffer=self.ex_stop.buf)  
+        self.cam.start()      
+        self.stop =  np.ndarray([1], dtype=np.uint8, buffer=shm_stop.buf)  
         self.last_model = MODEL
         self.upload_models(MODEL)
-        self.ex_raw = shared_memory.SharedMemory(name="raw-frame")
-        self.ex_dets = shared_memory.SharedMemory(name = "dets")
-        self.ex_status = shared_memory.SharedMemory(name="status") 
-        self.ex_counter = shared_memory.SharedMemory(name="counter") 
-        self.ex_thresh = shared_memory.SharedMemory(name = "thresh")
-        self.ex_nms = shared_memory.SharedMemory(name = "nms")
-        self.raw =  np.ndarray([BUF_SZ, 480, 640, 3], dtype=np.uint8, buffer=self.ex_raw.buf)	 
-        self.dets_buf = np.ndarray([BUF_SZ, NUM_DETS, 6], dtype=np.float32, buffer=self.ex_dets.buf)
-        self.status = np.ndarray([BUF_SZ], dtype=np.uint8, buffer=self.ex_status.buf)
-        self.counter = np.ndarray([1], dtype=np.int64, buffer=self.ex_counter.buf)
-        self.thresh = np.ndarray([1], dtype=np.float32, buffer=self.ex_thresh.buf)
-        self.nms = np.ndarray([1], dtype=np.float32, buffer=self.ex_nms.buf)
+        self.raw =  np.ndarray([BUF_SZ, 480, 640, 3], dtype=np.uint8, buffer=shm_raw.buf)	 
+        self.dets_buf = np.ndarray([BUF_SZ, NUM_DETS, 6], dtype=np.float32, buffer=shm_dets.buf)
+        self.status = np.ndarray([BUF_SZ], dtype=np.uint8, buffer=shm_status.buf)
+        self.counter = np.ndarray([1], dtype=np.int64, buffer=shm_counter.buf)
+        self.thresh = np.ndarray([1], dtype=np.float32, buffer=shm_thresh.buf)
+        self.nms = np.ndarray([1], dtype=np.float32, buffer=shm_nms.buf)
         self.begin = time.time()
         self.frame_counter = 0
         self.fps = 0
