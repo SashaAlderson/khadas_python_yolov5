@@ -35,8 +35,6 @@ static unsigned int tmpVal;
 #endif
 using namespace std;
 
-// const int classes = 80;
-//const float thresh = 0.2;
 const int numBBoxes = 5;
 const int relative = 1;
 const int yolov3_numAnchors = 6;
@@ -44,66 +42,6 @@ const int yolov2_numAnchors = 5;
 
 
 int num_thread = DEFAULT_THREAD_COUNT;
-
- 
-void get_input_data_cv(const cv::Mat& sample, uint8_t* input_data, int img_h, int img_w, float input_scale, int zero_point, int swapRB = 0)
-{
-	cv::Mat img;
-	if (sample.channels() == 4)
-	{
-		cv::cvtColor(sample, img, cv::COLOR_BGRA2BGR);
-	}
-	else if (sample.channels() == 1)
-	{
-		cv::cvtColor(sample, img, cv::COLOR_GRAY2BGR);
-	}
-	else if (sample.channels() == 3 && swapRB == 1)
-	{
-		cv::cvtColor(sample, img, cv::COLOR_BGR2RGB);
-		cout << "BGR2RGB!" << endl;
-	}
-	else
-	{
-		img = sample;
-	}
-	cv::Mat img2(img_h,img_w,CV_8UC3,cv::Scalar(0,0,0));
-	int h,w;
-	if((float)img.cols/(float)img_w > (float)img.rows/(float)img_h){
-		h=1.0*img_w/img.cols*img.rows;
-		w=img_w;
-		cv::resize(img, img, cv::Size(w,h));
-	}else{
-		w=1.0*img_h/img.rows*img.cols;
-		h=img_h;
-		cv::resize(img, img, cv::Size(w,h));
-	}
-	int top = (img_h - h)/2;
-	int bat = (img_h - h + 1)/2;
-	int left = (img_w - w)/2;
-	int right = (img_w - w + 1)/2;
-
-
-	cv::copyMakeBorder(img,img2,top,bat,left,right,cv::BORDER_CONSTANT,cv::Scalar(0,0,0));
-	uint8_t* img_data = img2.data;
-	int hw = img_h * img_w;
-
-	for (int h = 0; h < img_h; h++)
-	{
-		for (int w = 0; w < img_w; w++)
-		{
-			for (int c = 0; c < 3; c++)
-			{
-				int udata = *img_data;
-				if (udata > 255)
-					udata = 255;
-				else if (udata < 0)
-					udata = 0;
-				input_data[c * hw + h * img_w + w] = udata;
-				img_data++;
-			}
-		}
-	}
-}
 
 void get_input_data_new(const cv::Mat& sample, uint8_t* input_data, int img_h, int img_w, float input_scale, int zero_point, int swapRB = 0)
 {
@@ -125,46 +63,13 @@ void get_input_data_new(const cv::Mat& sample, uint8_t* input_data, int img_h, i
 	{
 		img = sample;
 	}
-	// cv::Mat img2(img_h,img_w,CV_8UC3,cv::Scalar(0,0,0));
-	// int h,w;
-	// if((float)img.cols/(float)img_w > (float)img.rows/(float)img_h){
-	// 	h=1.0*img_w/img.cols*img.rows;
-	// 	w=img_w;
-	// 	cv::resize(img, img, cv::Size(w,h));
-	// }else{
-	// 	w=1.0*img_h/img.rows*img.cols;
-	// 	h=img_h;
-	// 	cv::resize(img, img, cv::Size(w,h));
-	// }
-	// int top = (img_h - h)/2;
-	// int bat = (img_h - h + 1)/2;
-	// int left = (img_w - w)/2;
-	// int right = (img_w - w + 1)/2;
 
-
-	// cv::copyMakeBorder(img,img2,top,bat,left,right,cv::BORDER_CONSTANT,cv::Scalar(0,0,0));
 	uint8_t* img_data = img.data;
 	int hwc = img_h * img_w * 3;
 	for (int counter = 0; counter < hwc; counter++){
 		input_data[counter] = *img_data;
 		img_data++;
 	}
-	// for (int h = 0; h < img_h; h++)
-	// {
-	// 	for (int w = 0; w < img_w; w++)
-	// 	{
-	// 		for (int c = 0; c < 3; c++)
-	// 		{
-	// 			int udata = *img_data;
-	// 			if (udata > 255)
-	// 				udata = 255;
-	// 			else if (udata < 0)
-	// 				udata = 0;
-	// 			input_data[c * hw + h * img_w + w] = udata;
-	// 			img_data++;
-	// 		}
-	// 	}
-	// }
 }
 
 layer make_darknet_layer(int batch, int w, int h, int net_w, int net_h, int n, int total, int classes)
@@ -218,25 +123,6 @@ layer make_darknet_layer(int batch, int w, int h, int net_w, int net_h, int n, i
 
 	return l;
 }
-
-// void free_darknet_layer(layer l)
-// {
-//     if (NULL != l.anchors)
-//     {
-//         free(l.anchors);
-//         l.anchors = NULL;
-//     }
-//     if (NULL != l.mask)
-//     {
-//         free(l.mask);
-//         l.mask = NULL;
-//     }
-//     if (NULL != l.output)
-//     {
-//         free(l.output);
-//         l.output = NULL;
-//     }
-// }
 
 static int entry_index(layer l, int batch, int location, int entry)
 {
@@ -487,28 +373,6 @@ void do_nms_sort(detection* dets, int total, int classes, float iou_thresh)
 	}
 }
 
-int check_file_exist(const char* file_name)
-{
-	FILE* fp = fopen(file_name, "r");
-	if (!fp)
-	{
-		fprintf(stderr, "Input file not existed: %s\n", file_name);
-		return 0;
-	}
-	fclose(fp);
-	return 1;
-}
-
-
-static cv::Scalar obj_id_to_color(int obj_id) {
-	int const colors[6][3] = { { 1,0,1 },{ 0,0,1 },{ 0,1,1 },{ 0,1,0 },{ 1,1,0 },{ 1,0,0 } };
-	int const offset = obj_id * 123457 % 6;
-	int const color_scale = 150 + (obj_id * 123457) % 100;
-	cv::Scalar color(colors[offset][0], colors[offset][1], colors[offset][2]);
-	color *= color_scale;
-	return color;
-}
-
 int set_graph(int net_h, int net_w, graph_t graph){
 	int img_size = net_h * net_w * 3;
 	int dims[] = {1, 3, net_h, net_w};    // nchw
@@ -552,18 +416,6 @@ void run_graph_wrapper(int64_t p){
 void postpress_graph_image_wrapper(int height, int width, float* array, graph_t graph, int output_node_num,
 								   int net_w, int net_h, int classes, int num_dets, float nms, float thresh)
 {
-	// cv::Mat frame = cv::Mat(height, width, CV_8UC3, (uchar*)data_pointer);
-	// const char *coco_names[80] = {"person","bicycle","car","motorbike","aeroplane","bus",
-	// 							"train","truck","boat","traffic light","fire hydrant","stop sign",
-	// 							"parking meter","bench","bird","cat","dog","horse","sheep","cow",
-	// 							"elephant","bear","zebra","giraffe","backpack","umbrella","handbag",
-	// 							"tie","suitcase","frisbee","skis","snowboard","sports ball","kite",
-	// 							"baseball bat","baseball glove","skateboard","surfboard","tennis racket",
-	// 							"bottle","wine glass","cup","fork","knife","spoon","bowl","banana","apple",
-	// 							"sandwich","orange","broccoli","carrot","hot dog","pizza","donut","cake",
-	// 							"chair","sofa","pottedplant","bed","diningtable","toilet","tvmonitor",
-	// 							"laptop","mouse","remote","keyboard","cell phone","microwave","oven",
-	// 							"toaster","sink","refrigerator","book","clock","vase","scissors","teddy bear","hair drier","toothbrush"};
 	std::vector<layer> layers_params;
 	int numBBoxes = 3, total_numAnchors = 9;
 	layers_params.clear(); 
@@ -630,28 +482,12 @@ void postpress_graph_image_wrapper(int height, int width, float* array, graph_t 
 			box b = dets[i].bbox;
 			int left = (b.x - b.w / 2.)  * width;
 			int top = (b.y - b.h / 2.) * height;
-			// if (top < 30) {
-			// 	top = 30;
-			// 	left +=10;
-			// }
- 
-			// fprintf(stderr, "left = %d,top = %d, width = %.1f, height = %.1f\n", left, top, b.w, b.h);
 			array[counter*6] = (float) left;
 			array[counter*6 + 1] = (float) top;
 			array[counter*6 + 2] = (float) (b.w*width);
 			array[counter*6 + 3] = (float) (b.h*height);
 			array[counter*6 + 4] = (float) cls;
 			counter++;
-			// if (draw){
-			// 	cv::Rect rect(left, top, b.w*frame.cols, b.h*frame.rows);
-
-			// 	int baseline;
-			// 	cv::Size text_size = cv::getTextSize(cvTest, cv::FONT_HERSHEY_COMPLEX,0.5,1,&baseline);
-			// 	cv::Rect rect1(left, top-20, text_size.width+10, 20);
-			// 	cv::rectangle(frame,rect,obj_id_to_color(cls),2,20,0);
-			// 	cv::rectangle(frame,rect1,obj_id_to_color(cls),-1);
-			// 	cv::putText(frame,cvTest,cvPoint(left+5,top-5),cv::FONT_HERSHEY_COMPLEX,0.5,cv::Scalar(0,0,0),1);
-			// }
 		}
 
 		if (dets[i].mask)
