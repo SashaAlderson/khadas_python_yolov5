@@ -36,8 +36,7 @@ static unsigned int tmpVal;
 using namespace std;
 
 // const int classes = 80;
-const float thresh = 0.2;
-const float hier_thresh = 0.5;
+//const float thresh = 0.2;
 const int numBBoxes = 5;
 const int relative = 1;
 const int yolov3_numAnchors = 6;
@@ -380,7 +379,7 @@ int get_yolo_detections(layer l, int w, int h, int netw, int neth, float thresh,
 
 
 void fill_network_boxes(vector<layer> layers_params, int img_w, int img_h, int net_w, int net_h, float thresh,
-						float hier, int* map, int relative, detection* dets)
+						int* map, int relative, detection* dets)
 {
 	int j;
 	for (j = 0; j < ( int )layers_params.size(); ++j)
@@ -393,13 +392,13 @@ void fill_network_boxes(vector<layer> layers_params, int img_w, int img_h, int n
 }
 
 detection* get_network_boxes(vector<layer> layers_params, int img_w, int img_h, int net_w, int net_h, float thresh,
-							 float hier, int* map, int relative, int* num)
+							int* map, int relative, int* num)
 {
 	// make network boxes
 	detection* dets = make_network_boxes(layers_params, thresh, num);
 
 	// fill network boxes
-	fill_network_boxes(layers_params, img_w, img_h, net_w, net_h, thresh, hier, map, relative, dets);
+	fill_network_boxes(layers_params, img_w, img_h, net_w, net_h, thresh, map, relative, dets);
 	return dets;
 }
 
@@ -551,7 +550,7 @@ void run_graph_wrapper(int64_t p){
 }
 
 void postpress_graph_image_wrapper(int height, int width, float* array, graph_t graph, int output_node_num,
-								   int net_w, int net_h, int classes, int num_dets, float nms)
+								   int net_w, int net_h, int classes, int num_dets, float nms, float thresh)
 {
 	// cv::Mat frame = cv::Mat(height, width, CV_8UC3, (uchar*)data_pointer);
 	// const char *coco_names[80] = {"person","bicycle","car","motorbike","aeroplane","bus",
@@ -600,7 +599,7 @@ void postpress_graph_image_wrapper(int height, int width, float* array, graph_t 
 	int nboxes = 0;
 	// get network boxes
 	detection* dets =
-		get_network_boxes(layers_params, width, height, net_w, net_h, thresh, hier_thresh, 0, relative, &nboxes);
+		get_network_boxes(layers_params, width, height, net_w, net_h, thresh, 0, relative, &nboxes);
 
 	if (nms != 0)
 	{
