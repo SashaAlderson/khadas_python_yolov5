@@ -63,14 +63,15 @@ def letterbox(im, new_shape=(640, 640), color=(114, 114, 114), auto=False, scale
 
 def create_buffers():
     global shm_pre, shm_raw, shm_thresh, shm_nms, shm_counter, shm_status, shm_dets, shm_stop
-    shm_pre = shared_memory.SharedMemory(create=True, size=BUF_SZ*3*352*352, name = "pre-frame") 
-    shm_raw = shared_memory.SharedMemory(create=True, size=BUF_SZ*3*480*640, name = "raw-frame") 
-    shm_thresh = shared_memory.SharedMemory(create=True, size=4, name = "thresh") 
-    shm_nms = shared_memory.SharedMemory(create=True, size=4, name = "nms") 
-    shm_counter = shared_memory.SharedMemory(create=True, size=8, name = "counter") 
-    shm_status = shared_memory.SharedMemory(create=True, size=BUF_SZ, name = "status") 
-    shm_dets = shared_memory.SharedMemory(create=True, size=BUF_SZ*4*NUM_DETS*6, name = "dets") 
-    shm_stop = shared_memory.SharedMemory(create=True, size=1, name = "stop") 
+    shm_pre = shared_memory.SharedMemory(create=True, size=BUF_SZ*3*352*352, name = "pre-frame") # buffer of preprocessed images
+    shm_raw = shared_memory.SharedMemory(create=True, size=BUF_SZ*3*480*640, name = "raw-frame") # buffer of raw images
+    shm_thresh = shared_memory.SharedMemory(create=True, size=4, name = "thresh")                # threshold for detections
+    shm_nms = shared_memory.SharedMemory(create=True, size=4, name = "nms")                      # threshold for iou in nms
+    shm_counter = shared_memory.SharedMemory(create=True, size=8, name = "counter")              # number of images that have been read from camera
+    shm_status = shared_memory.SharedMemory(create=True, size=BUF_SZ, name = "status")           # status of image in buffer, 0 - not ready,
+                                                                                                 # 1 - ready for inference, 2 - being inferenced, 3 -inferenced 
+    shm_dets = shared_memory.SharedMemory(create=True, size=BUF_SZ*4*NUM_DETS*6, name = "dets")  # buffer with detections
+    shm_stop = shared_memory.SharedMemory(create=True, size=1, name = "stop")                    # stops inference when True
 
 def cam(source):
     thresh =  np.ndarray([1], dtype=np.float32, buffer=shm_thresh.buf)
